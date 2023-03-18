@@ -1,5 +1,6 @@
 package com.mojo.api.controller;
 
+import com.api.apiclientsdk.client.ApiClient;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.mojo.api.annotation.AuthCheck;
@@ -11,6 +12,7 @@ import com.mojo.api.model.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import com.mojo.api.model.dto.interfaceInfo.InterfaceInfoUpdateRequest;
 import com.mojo.api.model.entity.InterfaceInfo;
 import com.mojo.api.model.entity.User;
+import com.mojo.api.model.enums.InterfaceInfoStatusEnum;
 import com.mojo.api.service.InterfaceInfoService;
 import com.mojo.api.service.UserService;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,12 @@ public class InterfaceInfoController {
 
     @Resource
     private UserService userService;
+
+    /**
+     * 引入客户端实例
+     */
+    @Resource
+    private ApiClient apiClient;
 
     // region 增删改查
 
@@ -200,6 +208,7 @@ public class InterfaceInfoController {
      * @param request
      * @return
      */
+    @AuthCheck(mustRole = "admin")
     @PostMapping("/online")
     public BaseResponse<Boolean> onlineInterfaceInfo(@RequestBody IdRequest idRequest,
                                                      HttpServletRequest request) {
@@ -213,22 +222,16 @@ public class InterfaceInfoController {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
         //判断该接口是否可以调用
-
-
-        if (interfaceInfoUpdateRequest == null || interfaceInfoUpdateRequest.getId() <= 0) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        com.api.apiclientsdk.model.User user = new com.api.apiclientsdk.model.User();
+        user.setUsername("test");
+        String username = apiClient.getUsernameByPost(user);
+        if (StringUtils.isBlank(username)){
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR,"接口验证失败");
         }
+
         InterfaceInfo interfaceInfo = new InterfaceInfo();
-        BeanUtils.copyProperties(interfaceInfoUpdateRequest, interfaceInfo);
-        // 参数校验
-        interfaceInfoService.validInterfaceInfo(interfaceInfo, false);
-        User user = userService.getLoginUser(request);
-
-
-        // 仅本人或管理员可修改
-        if (!oldInterfaceInfo.getUserId().equals(user.getId()) && !userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(InterfaceInfoStatusEnum.ONLINE.getValue());
         boolean result = interfaceInfoService.updateById(interfaceInfo);
         return ResultUtils.success(result);
     }
@@ -240,27 +243,23 @@ public class InterfaceInfoController {
      * @param request
      * @return
      */
+    @AuthCheck(mustRole = "admin")
     @PostMapping("/offline")
     public BaseResponse<Boolean> offlineInterfaceInfo(@RequestBody IdRequest idRequest,
                                                      HttpServletRequest request) {
-        if (interfaceInfoUpdateRequest == null || interfaceInfoUpdateRequest.getId() <= 0) {
+        if (idRequest==null || idRequest.getId()<=0){
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        InterfaceInfo interfaceInfo = new InterfaceInfo();
-        BeanUtils.copyProperties(interfaceInfoUpdateRequest, interfaceInfo);
-        // 参数校验
-        interfaceInfoService.validInterfaceInfo(interfaceInfo, false);
-        User user = userService.getLoginUser(request);
-        long id = interfaceInfoUpdateRequest.getId();
         // 判断是否存在
+        long id = idRequest.getId();
         InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
         if (oldInterfaceInfo == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
-        // 仅本人或管理员可修改
-        if (!oldInterfaceInfo.getUserId().equals(user.getId()) && !userService.isAdmin(request)) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
-        }
+
+        InterfaceInfo interfaceInfo = new InterfaceInfo();
+        interfaceInfo.setId(id);
+        interfaceInfo.setStatus(InterfaceInfoStatusEnum.OFFLINE.getValue());
         boolean result = interfaceInfoService.updateById(interfaceInfo);
         return ResultUtils.success(result);
     }

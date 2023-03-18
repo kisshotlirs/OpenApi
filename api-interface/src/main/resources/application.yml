@@ -1,0 +1,13 @@
+server:
+  port: 8123
+  servlet:
+    context-path: /api
+api:
+  client:
+    secret-key: d18a788208b507320ccc24926c579a3e
+    access-key: 4cd4fc246ec244b4f0c37a53926d9b27
+
+spring:
+  mvc:
+    pathmatch:
+      matching-strategy: ANT_PATH_MATCHER
