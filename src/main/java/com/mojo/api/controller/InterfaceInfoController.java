@@ -3,11 +3,13 @@ package com.mojo.api.controller;
 import com.api.apiclientsdk.client.ApiClient;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.google.gson.Gson;
 import com.mojo.api.annotation.AuthCheck;
 import com.mojo.api.common.*;
 import com.mojo.api.constant.CommonConstant;
 import com.mojo.api.exception.BusinessException;
 import com.mojo.api.model.dto.interfaceInfo.InterfaceInfoAddRequest;
+import com.mojo.api.model.dto.interfaceInfo.InterfaceInfoInvokeRequest;
 import com.mojo.api.model.dto.interfaceInfo.InterfaceInfoQueryRequest;
 import com.mojo.api.model.dto.interfaceInfo.InterfaceInfoUpdateRequest;
 import com.mojo.api.model.entity.InterfaceInfo;
@@ -264,4 +266,38 @@ public class InterfaceInfoController {
         return ResultUtils.success(result);
     }
 
+    /**
+     * 测试调用
+     *
+     * @param interfaceInfoInvokeRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/invoke")
+    public BaseResponse<Object> invokeInterfaceInfo(@RequestBody InterfaceInfoInvokeRequest interfaceInfoInvokeRequest,
+                                                      HttpServletRequest request) {
+        if (interfaceInfoInvokeRequest == null || interfaceInfoInvokeRequest.getId()<=0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        long id = interfaceInfoInvokeRequest.getId();
+        String userRequestParams = interfaceInfoInvokeRequest.getUserRequestParams();
+        //判断是否存在
+        InterfaceInfo oldInterfaceInfo = interfaceInfoService.getById(id);
+        if (oldInterfaceInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
+        if (oldInterfaceInfo.getStatus().equals(InterfaceInfoStatusEnum.OFFLINE.getValue())){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"接口已关闭");
+        }
+        //鉴权
+        User loginUser = userService.getLoginUser(request);
+        String accessKey = loginUser.getAccessKey();
+        String secretKey = loginUser.getSecretKey();
+
+        ApiClient tempClient = new ApiClient(accessKey, secretKey);
+        Gson gson = new Gson();
+        com.api.apiclientsdk.model.User user = gson.fromJson(userRequestParams, com.api.apiclientsdk.model.User.class);
+        String usernameByPost = tempClient.getUsernameByPost(user);
+        return ResultUtils.success(usernameByPost);
+    }
 }
